@@ -1,0 +1,15 @@
+# Dependências do Sistema de Reconhecimento Facial
+
+# Processamento de imagem e visão computacional
+opencv-python==4.8.1.78
+face-recognition==1.3.0
+dlib==19.24.2
+
+# Interface gráfica
+Pillow==10.0.1
+
+# Processamento de dados
+numpy==1.24.3
+
+# Utilitários
+cmake==3.27.7 

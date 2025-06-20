@@ -209,7 +209,7 @@ class MainWindowRPi:
             160, 120, 
             text="Câmera Desligada\nClique em 'Iniciar Câmera' para começar", 
             fill="white",
-            font=("Arial", 12),
+            font=("Arial", 10),
             justify=tk.CENTER
         )
     
@@ -337,7 +337,7 @@ class MainWindowRPi:
                 160, 120, 
                 text="Câmera Desligada\nClique em 'Iniciar Câmera' para começar", 
                 fill="white",
-                font=("Arial", 12),
+                font=("Arial", 10),
                 justify=tk.CENTER
             )
             
@@ -393,9 +393,8 @@ class MainWindowRPi:
             # Converter BGR para RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            # Garantir que o frame é exatamente 320x240
-            if rgb_frame.shape[:2] != (240, 320):
-                rgb_frame = cv2.resize(rgb_frame, (320, 240))
+            # Redimensionar frame para ocupar todo o canvas (320x240)
+            rgb_frame = cv2.resize(rgb_frame, (320, 240))
             
             # Converter para PIL Image
             pil_image = Image.fromarray(rgb_frame)
@@ -405,7 +404,8 @@ class MainWindowRPi:
             if hasattr(self, 'video_image_id'):
                 self.video_canvas.delete(self.video_image_id)
             
-            self.video_image_id = self.video_canvas.create_image(160, 120, image=photo)
+            # Posicionar imagem no canto superior esquerdo (0, 0) para ocupar todo canvas
+            self.video_image_id = self.video_canvas.create_image(0, 0, anchor=tk.NW, image=photo)
             self.video_canvas.image = photo  # Manter referência
             
         except Exception as e:

@@ -1,12 +1,12 @@
 # Dependências do Sistema de Reconhecimento Facial - Raspberry Pi
-# Versões otimizadas para arquitetura ARM64
+# Versões otimizadas para arquitetura ARM64 e Python 3.11
 
 # Processamento de imagem e visão computacional
-opencv-python==4.6.0.66
-numpy==1.21.6
+opencv-contrib-python==4.6.0.66
+numpy>=1.24.0
 
 # Interface gráfica
-Pillow==9.5.0
+Pillow>=9.0.0
 
 # Reconhecimento facial alternativo (sem dlib)
 # Usaremos apenas OpenCV para detecção

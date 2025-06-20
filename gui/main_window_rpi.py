@@ -29,6 +29,8 @@ class MainWindowRPi:
         # Variáveis de controle
         self.camera_active = False
         self.video_thread = None
+        self.last_detections = ([], [])
+        self.video_image_id = None
         
         # Configurar interface
         self.setup_ui()
@@ -184,19 +186,26 @@ class MainWindowRPi:
         video_frame.columnconfigure(0, weight=1)
         video_frame.rowconfigure(0, weight=1)
         
-        # Canvas para o vídeo (menor para RPi)
+        # Frame interno para centralizar canvas
+        canvas_container = ttk.Frame(video_frame)
+        canvas_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        canvas_container.columnconfigure(0, weight=1)
+        canvas_container.rowconfigure(0, weight=1)
+        
+        # Canvas para o vídeo (tamanho fixo para evitar redimensionamento)
         self.video_canvas = tk.Canvas(
-            video_frame, 
+            canvas_container, 
             width=320, 
             height=240, 
             bg='black',
             relief=tk.SUNKEN,
-            borderwidth=2
+            borderwidth=2,
+            highlightthickness=0  # Remove borda de foco
         )
-        self.video_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.video_canvas.grid(row=0, column=0, padx=5, pady=5)
         
-        # Texto placeholder
-        self.video_canvas.create_text(
+        # Placeholder para quando câmera está desligada
+        self.placeholder_id = self.video_canvas.create_text(
             160, 120, 
             text="Câmera Desligada\nClique em 'Iniciar Câmera' para começar", 
             fill="white",
@@ -322,9 +331,9 @@ class MainWindowRPi:
             self.capture_button.config(state=tk.DISABLED)
             self.camera_status.config(text="Desligada", foreground="red")
             
-            # Limpar canvas
+            # Limpar canvas e mostrar placeholder
             self.video_canvas.delete("all")
-            self.video_canvas.create_text(
+            self.placeholder_id = self.video_canvas.create_text(
                 160, 120, 
                 text="Câmera Desligada\nClique em 'Iniciar Câmera' para começar", 
                 fill="white",
@@ -336,27 +345,40 @@ class MainWindowRPi:
     
     def video_loop(self):
         """Loop principal do vídeo - otimizado para RPi"""
+        frame_count = 0
+        last_detection_frame = 0
+        
         while self.camera_active:
             try:
                 frame = self.face_detector.get_frame()
                 if frame is not None:
-                    # Detectar rostos
-                    face_locations, face_names = self.face_detector.detect_faces(frame)
+                    frame_count += 1
+                    
+                    # Detectar rostos apenas a cada 5 frames para reduzir processamento
+                    if frame_count - last_detection_frame >= 5:
+                        face_locations, face_names = self.face_detector.detect_faces(frame)
+                        last_detection_frame = frame_count
+                        
+                        # Log de detecções (apenas uma vez por pessoa)
+                        for name in face_names:
+                            if name != "Desconhecido":
+                                self.log_event(f"Detectado: {name}")
+                    else:
+                        # Usar detecções da frame anterior
+                        face_locations, face_names = getattr(self, 'last_detections', ([], []))
+                    
+                    # Armazenar detecções para próxima frame
+                    self.last_detections = (face_locations, face_names)
                     
                     # Desenhar retângulos
                     frame_with_faces = self.face_detector.draw_face_rectangles(
                         frame, face_locations, face_names
                     )
                     
-                    # Converter para Tkinter
-                    self.update_video_display(frame_with_faces)
-                    
-                    # Log de detecções
-                    for name in face_names:
-                        if name != "Desconhecido":
-                            self.log_event(f"Detectado: {name}")
+                    # Converter para Tkinter - usar schedule_idle para evitar flickering
+                    self.root.after_idle(self.update_video_display, frame_with_faces)
                 
-                time.sleep(0.1)  # Mais lento para RPi (~10 FPS)
+                time.sleep(0.1)  # ~10 FPS para RPi
                 
             except Exception as e:
                 self.logger.error(f"Erro no loop de vídeo: {e}")
@@ -365,18 +387,25 @@ class MainWindowRPi:
     def update_video_display(self, frame):
         """Atualiza a exibição do vídeo"""
         try:
+            if not self.camera_active:
+                return
+                
             # Converter BGR para RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            # Frame já está em 320x240, não precisa redimensionar
+            # Garantir que o frame é exatamente 320x240
+            if rgb_frame.shape[:2] != (240, 320):
+                rgb_frame = cv2.resize(rgb_frame, (320, 240))
             
             # Converter para PIL Image
             pil_image = Image.fromarray(rgb_frame)
             photo = ImageTk.PhotoImage(image=pil_image)
             
-            # Atualizar canvas
-            self.video_canvas.delete("all")
-            self.video_canvas.create_image(160, 120, image=photo)
+            # Atualizar canvas sem deletar tudo (evita flickering)
+            if hasattr(self, 'video_image_id'):
+                self.video_canvas.delete(self.video_image_id)
+            
+            self.video_image_id = self.video_canvas.create_image(160, 120, image=photo)
             self.video_canvas.image = photo  # Manter referência
             
         except Exception as e:
